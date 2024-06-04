@@ -3,7 +3,7 @@
 client_id = "c0ead3fbf8e47d56a5749525e48cc478"
 name = "A360 Discounts"
 handle = "a360-discounts-app"
-application_url = "https://modular-blues-tears-substantial.trycloudflare.com"
+application_url = "https://thompson-crew-output-plan.trycloudflare.com"
 embedded = true
 
 [build]
@@ -17,9 +17,9 @@ scopes = "read_products,write_products"
 
 [auth]
 redirect_urls = [
-  "https://modular-blues-tears-substantial.trycloudflare.com/auth/callback",
-  "https://modular-blues-tears-substantial.trycloudflare.com/auth/shopify/callback",
-  "https://modular-blues-tears-substantial.trycloudflare.com/api/auth/callback"
+  "https://thompson-crew-output-plan.trycloudflare.com/auth/callback",
+  "https://thompson-crew-output-plan.trycloudflare.com/auth/shopify/callback",
+  "https://thompson-crew-output-plan.trycloudflare.com/api/auth/callback"
 ]
 
 [webhooks]
