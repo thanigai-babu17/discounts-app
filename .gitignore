@@ -1,5 +1,5 @@
 node_modules
-
+firebase-admin-sdk-key.json
 /.cache
 /build
 /app/build
@@ -11,4 +11,3 @@ node_modules
 database.sqlite
 
 .env
-firebase-admin-sdk-key.json
