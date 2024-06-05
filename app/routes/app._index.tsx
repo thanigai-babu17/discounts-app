@@ -87,6 +87,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
                       title
                       productType
                       tags
+                      status
                       featuredImage {
                         id
                         url

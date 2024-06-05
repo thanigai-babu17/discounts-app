@@ -29,19 +29,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
 export default function DiscountgroupsPage() {
   const loaderData = useLoaderData<typeof loader>();
-  const [productSyncStatus, setProductSyncStatus] = useState<string | null>(null);
-  console.log(productSyncStatus, 'sync status');
   return (
     <Page fullWidth>
       <Layout>
         <Layout.Section>
           <Card>
-            {productSyncStatus === 'CREATED' && (
+            {loaderData.data?.status === 'CREATED' && (
               <Banner title="Products Sync Inprogress" tone="info">
                 <p>syncing in progress it may take a while please come back later</p>
               </Banner>
             )}
-            {productSyncStatus === null && (
+            {loaderData.data === null && (
               <Banner title="Products Not Synced!" tone="warning">
                 <p>
                   Please to products sync section in <Link to={'/app'}>here</Link> to start syncing
@@ -54,7 +52,7 @@ export default function DiscountgroupsPage() {
               action={{
                 content: 'Add Discount group',
                 url: '/app/discount-groups/create',
-                disabled: productSyncStatus != 'COMPLETED',
+                disabled: loaderData.data?.status != 'COMPLETE',
               }}
               image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
             >

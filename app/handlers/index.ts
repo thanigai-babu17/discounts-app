@@ -4,6 +4,7 @@ const pipeline = promisify(stream.pipeline);
 import fs from 'fs';
 import readline from 'readline';
 import db from '../db.server';
+import { extractProductId } from '~/common/utils';
 
 /**
  * handles product bulk query when bulk query is done downloads the file and syncs with firestore db
@@ -56,28 +57,30 @@ async function processFile(filePath: string, shopName: string): Promise<void> {
     const json = JSON.parse(line);
     if (!json.__parentId) {
       const variantData = {
-        variant_id: json.id,
+        id: extractProductId(json.id),
         main_product_id: json.product.id,
+        status: json.product.status,
         variant_title: json.title,
         display_name: json.displayName,
-        variant_img: json.image ? json.image.src : null,
-        product_img: json.product.featuredImage ? json.product.featuredImage.src : null,
+        variant_img: json.image?.url || null,
+        product_img: json.product.featuredImage?.url || null,
         tags: json.product.tags,
         product_title: json.product.title,
         product_type: json.product.productType,
         price: json.price,
         availability: json.availableForSale,
         collections: [],
+        sku: json.sku,
+        discount_group: null,
       };
       variantBulkData.push(variantData);
     } else {
-      const variantIndex = variantBulkData.findIndex(
-        (variant) => variant.variant_id === json.__parentId
-      );
+      let parentId = extractProductId(json.__parentId);
+      const variantIndex = variantBulkData.findIndex((variant) => variant.id === parentId);
       if (variantIndex !== -1) {
         variantBulkData[variantIndex].collections.push(json.title);
       } else {
-        collectionPendingData[json.__parentId] = json.title;
+        collectionPendingData[parentId] = json.title;
       }
     }
   }
@@ -97,7 +100,7 @@ async function processFile(filePath: string, shopName: string): Promise<void> {
     const batch = db.batch();
     const batchData = variantBulkData.slice(i, i + BATCH_SIZE);
     batchData.forEach((entry) => {
-      const docRef = db.collection(`${shopName}_products`).doc();
+      const docRef = db.collection(`${shopName}_products`).doc(entry.id);
       batch.set(docRef, entry);
     });
     await batch.commit();
