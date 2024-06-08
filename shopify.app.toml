@@ -3,7 +3,7 @@
 client_id = "c0ead3fbf8e47d56a5749525e48cc478"
 name = "A360 Discounts"
 handle = "a360-discounts-app"
-application_url = "https://calendar-largely-earliest-bb.trycloudflare.com"
+application_url = "https://detective-libraries-meditation-radio.trycloudflare.com"
 embedded = true
 
 [build]
@@ -17,9 +17,9 @@ scopes = "read_products,write_products"
 
 [auth]
 redirect_urls = [
-  "https://calendar-largely-earliest-bb.trycloudflare.com/auth/callback",
-  "https://calendar-largely-earliest-bb.trycloudflare.com/auth/shopify/callback",
-  "https://calendar-largely-earliest-bb.trycloudflare.com/api/auth/callback"
+  "https://detective-libraries-meditation-radio.trycloudflare.com/auth/callback",
+  "https://detective-libraries-meditation-radio.trycloudflare.com/auth/shopify/callback",
+  "https://detective-libraries-meditation-radio.trycloudflare.com/api/auth/callback"
 ]
 
 [webhooks]

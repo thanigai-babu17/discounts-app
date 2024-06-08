@@ -27,3 +27,19 @@ export type Product = {
 };
 
 export type FilterQueryResponse = { status: boolean; data?: Product[] | null; error?: Error };
+
+export type DiscountGroup = {
+  id: string;
+  criterias: ConditionRow[];
+  handle: string;
+  oneTimeDiscountType: string;
+  oneTimeDiscountVal: string;
+  status: string;
+  subDiscountType: string;
+  subDiscountVal: string;
+};
+
+export const APP_LABELS = {
+  PERCENTAGE: '%',
+  FIXED: '$',
+};

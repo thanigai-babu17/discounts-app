@@ -20,7 +20,7 @@ import * as yup from 'yup';
 import FilterCriteriaForm from '~/components/FilterCriteriaForm';
 import { ConditionRow, FilterQueryResponse } from '~/common/types';
 import { ActionFunctionArgs, redirect } from '@remix-run/node';
-import { useFetcher } from '@remix-run/react';
+import { useFetcher, useNavigate } from '@remix-run/react';
 import { createDiscountGroup, filterProducts } from '~/services/discountgroups.service';
 import ProductIndexTable from '~/components/ProductIndexTable';
 
@@ -50,8 +50,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     if (formData.formType === 'DISCOUNT_CREATE') {
-      const updatedProducts = await createDiscountGroup(session.shop, formData.payload);
-      console.log(updatedProducts, 'updated products');
+      const updatedProducts = await createDiscountGroup(
+        session.shop,
+        formData.payload,
+        session.accessToken
+      );
+      // console.log(updatedProducts, 'updated products');
       return { status: true, data: updatedProducts };
     }
   } catch (error) {
@@ -66,6 +70,7 @@ export default function DiscountgroupsPageCreate() {
   const [selected, setSelected] = useState('today');
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [discountCriteria, setDiscountCriterias] = useState<ConditionRow[]>([]);
+  const navigation = useNavigate();
 
   const discountGroupForm = useFormik({
     initialValues: {
@@ -104,10 +109,10 @@ export default function DiscountgroupsPageCreate() {
   }, [discountGroupForm.isValid]);
 
   useEffect(() => {
-    console.log(discountGroupCreate.data?.status);
-   //  if (discountGroupCreate.data?.status) {
-   //    redirect('/app/discount-groups');
-   //  }
+    console.log(discountGroupCreate.data, 'discount created!!!!');
+    if (discountGroupCreate.data?.status) {
+      navigation('/app/discount-groups');
+    }
   }, [discountGroupCreate.data]);
 
   const handleSelectChange = useCallback((value: string) => setSelected(value), []);

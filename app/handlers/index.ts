@@ -58,7 +58,7 @@ async function processFile(filePath: string, shopName: string): Promise<void> {
     if (!json.__parentId) {
       const variantData = {
         id: extractProductId(json.id),
-        main_product_id: json.product.id,
+        main_product_id: extractProductId(json.product.id),
         status: json.product.status,
         variant_title: json.title,
         display_name: json.displayName,
