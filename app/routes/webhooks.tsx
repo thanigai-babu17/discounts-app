@@ -1,7 +1,8 @@
 import type { ActionFunctionArgs } from '@remix-run/node';
 import { authenticate } from '../shopify.server';
-import db from '../db.server';
+import db from '../db/db.server';
 import { productBulkQueryHandler } from '~/handlers';
+import { tableNamePrefix } from '~/common/utils';
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { topic, shop, session, admin, payload } = await authenticate.webhook(request);
@@ -14,18 +15,21 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   switch (topic) {
     case 'APP_UNINSTALLED':
       if (session) {
-        const querySnapshot = await db
-          .collection('shopify_sessions')
-          .where('shop', '==', shop)
-          .get();
-        const batch = db.batch();
-        querySnapshot.forEach((doc) => {
-          batch.delete(doc.ref);
-        });
-
-        await batch.commit();
+        await db('shopify_sessions').where('shop', shop).del();
+        await db('product_sync').where('shop', shop).del();
+        Promise.all([
+          db.schema.dropTableIfExists(tableNamePrefix(`${shop}_products`)),
+          db.schema.dropTableIfExists(tableNamePrefix(`${shop}_discountgroups`)),
+          db('product_sync').where('shop', shop).del(),
+        ])
+          .then((resp: any) => {
+            console.log('APP_UNINSTALLED:', resp);
+          })
+          .catch((err) => {
+            console.log('APP_UNINSTALLED:Error while deleting tables');
+            throw err;
+          });
       }
-
       break;
     case 'BULK_OPERATIONS_FINISH':
       console.log('inside bulk query', topic);
@@ -50,7 +54,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         .catch((err) => {
           console.error('bulk query handler completed');
         });
-
       break;
     case 'CUSTOMERS_DATA_REQUEST':
     case 'CUSTOMERS_REDACT':

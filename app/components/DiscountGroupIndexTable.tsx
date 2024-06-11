@@ -29,11 +29,11 @@ export default function DiscountGroupIndexTable({ discounts }: ComponentProps) {
       {
         id,
         handle,
-        subDiscountType,
-        subDiscountVal,
+        sub_discount_type,
+        sub_discount_value,
         status,
-        oneTimeDiscountType,
-        oneTimeDiscountVal,
+        onetime_discount_type,
+        onetime_discount_value,
       },
       index
     ) => (
@@ -57,10 +57,10 @@ export default function DiscountGroupIndexTable({ discounts }: ComponentProps) {
           )}
         </IndexTable.Cell>
         <IndexTable.Cell>
-          <Badge>{`${subDiscountVal} ${APP_LABELS[subDiscountType as keyof typeof APP_LABELS]}`}</Badge>
+          <Badge>{`${sub_discount_value} ${APP_LABELS[sub_discount_type as keyof typeof APP_LABELS]}`}</Badge>
         </IndexTable.Cell>
         <IndexTable.Cell>
-          <Badge>{`${oneTimeDiscountVal} ${APP_LABELS[oneTimeDiscountType as keyof typeof APP_LABELS]}`}</Badge>
+          <Badge>{`${onetime_discount_value} ${APP_LABELS[onetime_discount_type as keyof typeof APP_LABELS]}`}</Badge>
         </IndexTable.Cell>
       </IndexTable.Row>
     )

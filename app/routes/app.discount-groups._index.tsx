@@ -3,38 +3,36 @@ import { TitleBar } from '@shopify/app-bridge-react';
 import { Link, Outlet, useLoaderData } from '@remix-run/react';
 import { authenticate } from '~/shopify.server';
 import { LoaderFunctionArgs } from '@remix-run/node';
-import db from '../db.server';
+import db from '../db/db.server';
 import { useState } from 'react';
 import DiscountGroupIndexTable from '~/components/DiscountGroupIndexTable';
 import { DiscountGroup } from '~/common/types';
+import { tableNamePrefix } from '~/common/utils';
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
-  const querySnapshot = await db
-    .collection(`product_sync`)
-    .where('shop', '==', session.shop)
-    .limit(1)
-    .get();
-  const querySnapshotData = querySnapshot.docs.map((q) => {
-    const qData = q.data();
-    return {
-      id: q.id,
-      shop: qData.shop,
-      status: qData.status,
-      operation_id: qData.operation_id,
-    };
-  });
-  const discountGroup = await db.collection(`${session.shop}_discountgroups`).get();
-  const discountGroupData = discountGroup.docs.map((q) => {
-    return {
-      id: q.id,
-      ...q.data(),
-    };
-  });
+  const [productSyncResp] = await db('product_sync')
+    .select('status')
+    .where('shop', session.shop)
+    .limit(1);
+
+  const discountGroup = await db(tableNamePrefix(`${session.shop}_discountgroups`))
+    .select(
+      'id',
+      'status',
+      'handle',
+      'sub_discount_type',
+      'sub_discount_value',
+      'onetime_discount_type',
+      'onetime_discount_value',
+      'criterias'
+    )
+    .orderBy('updated_at', 'desc');
+
   return {
     data: {
-      sync_status: querySnapshotData[0] ? querySnapshotData[0]?.status : null,
-      discount_groups: discountGroupData,
+      sync_status: productSyncResp ? productSyncResp?.status : null,
+      discount_groups: discountGroup || null,
     },
   };
 };

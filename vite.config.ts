@@ -33,7 +33,7 @@ if (host === 'localhost') {
 }
 
 export default defineConfig({
-  // optimizeDeps: { exclude: ['fsevents'] },
+  optimizeDeps: { exclude: ['fsevents'] },
   server: {
     port: Number(process.env.PORT || 3000),
     hmr: hmrConfig,

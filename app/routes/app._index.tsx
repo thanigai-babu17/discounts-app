@@ -28,7 +28,7 @@ import {
 } from '@shopify/polaris';
 import { TitleBar, useAppBridge } from '@shopify/app-bridge-react';
 import { authenticate } from '../shopify.server';
-import db from '../db.server';
+import db from '../db/db.server';
 
 type ResponseFetcherType = {
   status: boolean;
@@ -39,22 +39,17 @@ type ResponseFetcherType = {
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
-  const querySnapshot = await db
-    .collection(`product_sync`)
-    .where('shop', '==', session.shop)
-    .limit(1)
-    .get();
-  const querySnapshotData = querySnapshot.docs.map((q) => {
-    const qData = q.data();
-    return {
-      id: q.id,
-      shop: qData.shop,
-      status: qData.status,
-      operation_id: qData.operation_id,
-    };
-  });
+  const [queryResp] = await db('product_sync')
+    .select('id', 'shop', 'status', 'operation_id')
+    .where('shop', session.shop)
+    .limit(1);
+  console.log(queryResp, 'query result');
+  let queryData = null;
+  if (queryResp) {
+    queryData = queryResp;
+  }
   return {
-    data: querySnapshotData[0] || null,
+    data: queryResp,
     shop: session.shop,
   };
 };
@@ -81,6 +76,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
                     sku
                     image {
                       url
+                    }
+                    metafields(first:10,namespace:"a360_discounts"){
+                      edges {
+                        node {
+                            id
+                            key
+                            value
+                            namespace
+                            type
+                        }
+                      }
                     }
                     product {
                       id
@@ -119,30 +125,27 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       }
    `);
     const responseJson = await response.json();
+    console.log(JSON.stringify(responseJson), 'query response json');
     if (
       responseJson.data.bulkOperationRunQuery.bulkOperation &&
       !responseJson.data.bulkOperationRunQuery.userErrors.length
     ) {
-      const docRef = await db.collection(`product_sync`).add({
-        shop: session.shop,
-        status: responseJson.data.bulkOperationRunQuery.bulkOperation.status,
-        operation_id: responseJson.data.bulkOperationRunQuery.bulkOperation.id,
-      });
-      const docData = (await docRef.get()).data();
+      const recRef = await db(`product_sync`)
+        .returning(['id', 'shop', 'status', 'operation_id'])
+        .insert({
+          shop: session.shop,
+          status: responseJson.data.bulkOperationRunQuery.bulkOperation.status,
+          operation_id: responseJson.data.bulkOperationRunQuery.bulkOperation.id,
+        });
       return {
         status: true,
         message: 'Bulk query request initiated successfully',
-        data: {
-          id: docRef.id,
-          shop: docData?.shop,
-          status: docData?.status,
-          operation_id: docData?.operation_id,
-        },
+        data: recRef,
       };
     } else {
       return {
         status: false,
-        message: 'Something wend wrong, Please try again.',
+        message: 'Something went wrong, Please try again.',
         stack: responseJson.data.bulkOperationRunQuery.userErrors,
       };
     }
@@ -161,31 +164,26 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   if (syncAction === 'STATUS_REFRESH') {
-    const querySnapshot = await db
-      .collection(`product_sync`)
-      .where('shop', '==', session.shop)
-      .limit(1)
-      .get();
-    const querySnapshotData = querySnapshot.docs.map((q) => {
-      const qData = q.data();
+    const [queryResult] = await db('product_sync')
+      .select('id', 'shop', 'status', 'operation_id')
+      .where('shop', session.shop)
+      .limit(1);
+    console.log(queryResult, 'query result');
+    if (queryResult) {
       return {
-        id: q.id,
-        shop: qData.shop,
-        status: qData.status,
-        operation_id: qData.operation_id,
+        status: true,
+        message: 'Bulk query request initiated successfully',
       };
-    });
-
-    return {
-      status: true,
-      message: 'Bulk query request initiated successfully',
-      data: querySnapshotData[0] || null,
-    };
+    } else {
+      return {
+        status: false,
+        message: 'No matching record found',
+      };
+    }
   }
 };
 
 export default function Index() {
-  const nav = useNavigation();
   const fetcher = useFetcher<ResponseFetcherType | undefined>();
   const loaderData = useLoaderData<typeof loader>();
   const [productSyncStatus, setProductSyncStatus] = useState<string | null>(
@@ -193,12 +191,11 @@ export default function Index() {
   );
 
   useEffect(() => {
-    console.log(fetcher.data, 'fetched data');
-    if (fetcher.data) {
-      if (fetcher.data.data.status) {
-        setProductSyncStatus(fetcher.data.data.status);
-      }
-    }
+    
+    shopify.toast.show(fetcher.data?.message as string, {
+      isError: !fetcher.data?.status,
+    });
+    console.log(console.log(fetcher.data, 'fetched data'));
   }, [fetcher.data]);
 
   const handleSyncProduct = () => {
@@ -212,8 +209,6 @@ export default function Index() {
   const handleReSyncProduct = () => {
     fetcher.submit({ action: 'PRODUCT_RESYNC' }, { method: 'POST' });
   };
-
-  console.log(productSyncStatus, 'product sync status');
 
   return (
     <Page>

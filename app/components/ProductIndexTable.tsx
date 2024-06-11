@@ -26,7 +26,7 @@ export default function ProductIndexTable({
   loading,
   onSelectionChange,
 }: ComponentProps) {
-  
+  console.log(products?.length, products, 'products length');
   const { selectedResources, allResourcesSelected, handleSelectionChange } = useIndexResourceState(
     products as Product[]
   );

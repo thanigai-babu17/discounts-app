@@ -3,7 +3,7 @@
 client_id = "c0ead3fbf8e47d56a5749525e48cc478"
 name = "A360 Discounts"
 handle = "a360-discounts-app"
-application_url = "https://detective-libraries-meditation-radio.trycloudflare.com"
+application_url = "https://doll-innovative-ng-success.trycloudflare.com"
 embedded = true
 
 [build]
@@ -17,9 +17,9 @@ scopes = "read_products,write_products"
 
 [auth]
 redirect_urls = [
-  "https://detective-libraries-meditation-radio.trycloudflare.com/auth/callback",
-  "https://detective-libraries-meditation-radio.trycloudflare.com/auth/shopify/callback",
-  "https://detective-libraries-meditation-radio.trycloudflare.com/api/auth/callback"
+  "https://doll-innovative-ng-success.trycloudflare.com/auth/callback",
+  "https://doll-innovative-ng-success.trycloudflare.com/auth/shopify/callback",
+  "https://doll-innovative-ng-success.trycloudflare.com/api/auth/callback"
 ]
 
 [webhooks]

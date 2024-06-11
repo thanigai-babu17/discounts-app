@@ -3,8 +3,9 @@ import { promisify } from 'util';
 const pipeline = promisify(stream.pipeline);
 import fs from 'fs';
 import readline from 'readline';
-import db from '../db.server';
-import { extractProductId } from '~/common/utils';
+import db from '../db/db.server';
+import { tableNamePrefix, extractProductId } from '~/common/utils';
+import { createProductTable } from '~/db/db.handlers';
 
 /**
  * handles product bulk query when bulk query is done downloads the file and syncs with firestore db
@@ -52,6 +53,7 @@ async function processFile(filePath: string, shopName: string): Promise<void> {
 
   const variantBulkData: any[] = [];
   const collectionPendingData: any = {};
+  const metafieldPendingData: any = {};
 
   for await (const line of rl) {
     const json = JSON.parse(line);
@@ -64,23 +66,52 @@ async function processFile(filePath: string, shopName: string): Promise<void> {
         display_name: json.displayName,
         variant_img: json.image?.url || null,
         product_img: json.product.featuredImage?.url || null,
-        tags: json.product.tags,
+        tags_arr: json.product.tags,
+        tags_str: json.product.tags ? json.product.tags.toString() : null,
         product_title: json.product.title,
         product_type: json.product.productType,
         price: json.price,
         availability: json.availableForSale,
-        collections: [],
+        collections_arr: [],
+        collections_str: '',
         sku: json.sku,
         discount_group: null,
+        onetime_discount_percentage: null,
+        onetime_discount_price: null,
+        subscription_discount_percentage: null,
+        subscription_discount_price: null,
       };
       variantBulkData.push(variantData);
     } else {
       let parentId = extractProductId(json.__parentId);
       const variantIndex = variantBulkData.findIndex((variant) => variant.id === parentId);
-      if (variantIndex !== -1) {
-        variantBulkData[variantIndex].collections.push(json.title);
-      } else {
-        collectionPendingData[parentId] = json.title;
+      if (json.id.includes('Collection')) {
+        if (variantIndex !== -1) {
+          variantBulkData[variantIndex].collections_arr.push(json.title);
+          if (
+            variantBulkData[variantIndex].collections_str &&
+            variantBulkData[variantIndex].collections_str.length
+          ) {
+            variantBulkData[variantIndex].collections_str = variantBulkData[
+              variantIndex
+            ].collections_str.concat(',', json.title);
+          } else {
+            variantBulkData[variantIndex].collections_str = json.title;
+          }
+        } else {
+          collectionPendingData[parentId] = json.title;
+        }
+      }
+
+      if (json.id.includes('Metafield')) {
+        if (variantIndex !== -1) {
+          variantBulkData[variantIndex][json.key] = json.id;
+        } else {
+          metafieldPendingData[parentId] = {
+            key: json.key,
+            id: json.id,
+          };
+        }
       }
     }
   }
@@ -89,23 +120,34 @@ async function processFile(filePath: string, shopName: string): Promise<void> {
     if (collectionPendingData.hasOwnProperty(key)) {
       const variantIndex = variantBulkData.findIndex((variant) => variant.variant_id === key);
       if (variantIndex !== -1) {
-        variantBulkData[variantIndex].collections.push(collectionPendingData[key]);
+        variantBulkData[variantIndex].collections_arr.push(collectionPendingData[key]);
+        if (
+          variantBulkData[variantIndex].collections_str &&
+          variantBulkData[variantIndex].collections_str.length
+        ) {
+          variantBulkData[variantIndex].collections_str = variantBulkData[
+            variantIndex
+          ].collections_str.concat(',', collectionPendingData[key]);
+        } else {
+          variantBulkData[variantIndex].collections_str = collectionPendingData[key];
+        }
       }
       delete collectionPendingData[key];
     }
   }
 
-  const BATCH_SIZE = 498;
-  for (let i = 0; i < variantBulkData.length; i += BATCH_SIZE) {
-    const batch = db.batch();
-    const batchData = variantBulkData.slice(i, i + BATCH_SIZE);
-    batchData.forEach((entry) => {
-      const docRef = db.collection(`${shopName}_products`).doc(entry.id);
-      batch.set(docRef, entry);
-    });
-    await batch.commit();
+  for (let Idkey in metafieldPendingData) {
+    if (metafieldPendingData.hasOwnProperty(Idkey)) {
+      const variantIndex = variantBulkData.findIndex((variant) => variant.variant_id === Idkey);
+      if (variantIndex !== -1) {
+        variantBulkData[variantIndex][metafieldPendingData[Idkey].key] =
+          metafieldPendingData[Idkey].id;
+      }
+      delete metafieldPendingData[Idkey];
+    }
   }
 
+  await db(tableNamePrefix(`${shopName}_products`)).insert(variantBulkData);
   fs.unlink(filePath, (err) => {
     if (err) {
       console.error('Error deleting temporary file:', err);
@@ -113,14 +155,7 @@ async function processFile(filePath: string, shopName: string): Promise<void> {
       console.log('Temporary file deleted successfully');
     }
   });
-
-  const docRef = db.collection('product_sync');
-  docRef
-    .where('shop', '==', shopName)
-    .get()
-    .then((querySnapshot) => {
-      querySnapshot.forEach((doc) => {
-        docRef.doc(doc.id).update({ status: 'COMPLETE' });
-      });
-    });
+  await db('product_sync').where('shop', shopName).update({
+    status: 'COMPLETE',
+  });
 }

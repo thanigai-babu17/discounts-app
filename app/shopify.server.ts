@@ -7,8 +7,11 @@ import {
 } from '@shopify/shopify-app-remix/server';
 import { PrismaSessionStorage } from '@shopify/shopify-app-session-storage-prisma';
 import { restResources } from '@shopify/shopify-api/rest/admin/2024-04';
-import firestore from './db.server';
+import firestore from './db/db.server';
 import { FirestoreSessionStorage } from './firestore-sessions';
+import { PostgreSQLSessionStorage } from '@shopify/shopify-app-session-storage-postgresql';
+import { createDiscountGroupTable, createProductTable, initDBSetupOnNewInstall } from './db/db.handlers';
+import { createDiscountGroup } from './services/discountgroups.service';
 
 const shopify = shopifyApp({
   apiKey: process.env.SHOPIFY_API_KEY,
@@ -17,9 +20,7 @@ const shopify = shopifyApp({
   scopes: process.env.SCOPES?.split(','),
   appUrl: process.env.SHOPIFY_APP_URL || '',
   authPathPrefix: '/auth',
-  sessionStorage: new FirestoreSessionStorage({
-    firestore: firestore,
-  }),
+  sessionStorage: new PostgreSQLSessionStorage(new URL(process.env.DB_URL as string)),
   distribution: AppDistribution.AppStore,
   restResources,
   webhooks: {
@@ -34,8 +35,10 @@ const shopify = shopifyApp({
   },
   hooks: {
     afterAuth: async ({ session }) => {
-      console.log('*** running during installation ****');
       shopify.registerWebhooks({ session });
+      initDBSetupOnNewInstall(session.shop).then(resp=>{
+        console.log(resp,"table creation resp");
+      });
     },
   },
   future: {

@@ -32,11 +32,11 @@ export type DiscountGroup = {
   id: string;
   criterias: ConditionRow[];
   handle: string;
-  oneTimeDiscountType: string;
-  oneTimeDiscountVal: string;
+  onetime_discount_type: string;
+  onetime_discount_value: string;
   status: string;
-  subDiscountType: string;
-  subDiscountVal: string;
+  sub_discount_type: string;
+  sub_discount_value: string;
 };
 
 export const APP_LABELS = {

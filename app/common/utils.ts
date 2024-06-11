@@ -21,9 +21,9 @@ export function imgUrl(url: string, size: string): string {
  * @param {string} shopifyId - The full Shopify ProductVariant identifier string.
  * @returns {string} The extracted product ID.
  */
-export function extractProductId(shopifyId: string): string {
+export function extractProductId(shopifyId: string): number {
   const parts = shopifyId.split('/');
-  return parts[parts.length - 1];
+  return parseInt(parts[parts.length - 1]);
 }
 
 /**
@@ -80,4 +80,14 @@ export function roundNumber(num: number, savings: boolean, precision: number = 2
 export function fixedDiscountToPercentage(price: number, fixedDiscount: number): string {
   const discountVal = (fixedDiscount / price) * 100;
   return discountVal.toFixed(2);
+}
+
+
+/**
+ * Replaces dots with underscores in a given name.
+ * @param {string} name - The name to sanitize.
+ * @returns {string} The sanitized name with dots replaced by underscores.
+ */
+export function tableNamePrefix(name: string): string {
+  return name.replace(/\./g, '_');
 }

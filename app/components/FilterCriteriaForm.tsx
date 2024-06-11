@@ -25,21 +25,23 @@ const propertyNameOptions = [
 
 const propertyOperatorsMap = {
   collections: [
-    { label: 'contains', value: 'array-contains' },
-    { label: 'not contains', value: 'array-not-contains' },
+    { label: 'contains', value: 'like' },
+    { label: 'starts with', value: 'starts-with' },
+    { label: 'ends with', value: 'ends-with' },
   ],
   product_type: [
-    { label: 'is equal to', value: '==' },
+    { label: 'is equal to', value: '=' },
     { label: 'not equal to', value: '!=' },
     { label: 'starts with', value: '>=' },
     { label: 'ends with', value: '<' },
   ],
   tags: [
-    { label: 'contains', value: 'array-contains' },
-    { label: 'not contains', value: 'array-not-contains' },
+    { label: 'contains', value: 'like' },
+    { label: 'starts with', value: 'starts-with' },
+    { label: 'ends with', value: 'ends-with' },
   ],
   price: [
-    { label: 'is equal to', value: '==' },
+    { label: 'is equal to', value: '=' },
     { label: 'not equal to', value: '!=' },
     { label: 'greater than', value: '>' },
     { label: 'greater than or equal to', value: '>=' },
@@ -47,16 +49,18 @@ const propertyOperatorsMap = {
     { label: 'less than or equal to', value: '<=' },
   ],
   product_title: [
-    { label: 'is equal to', value: '==' },
+    { label: 'is equal to', value: '=' },
     { label: 'not equal to', value: '!=' },
-    { label: 'starts with', value: '>=' },
-    { label: 'ends with', value: '<' },
+    { label: 'contains', value: 'like' },
+    { label: 'starts with', value: 'starts-with' },
+    { label: 'ends with', value: 'ends-with' },
   ],
   variant_title: [
-    { label: 'is equal to', value: '==' },
+    { label: 'is equal to', value: '=' },
     { label: 'not equal to', value: '!=' },
-    { label: 'starts with', value: '>=' },
-    { label: 'ends with', value: '<' },
+    { label: 'contains', value: 'like' },
+    { label: 'starts with', value: 'starts-with' },
+    { label: 'ends with', value: 'ends-with' },
   ],
 };
 

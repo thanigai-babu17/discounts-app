@@ -1,16 +1,120 @@
 import { LoaderFunctionArgs, json } from '@remix-run/node';
-import stream from 'stream';
-import { promisify } from 'util';
-const pipeline = promisify(stream.pipeline);
 import fs from 'fs';
 import readline from 'readline';
-import db from '../db.server';
+
+const mutationArr = [
+  {
+    namespace: 'a360_discounts',
+    key: 'onetime_discount_percentage',
+    value: '0.0',
+    type: 'number_decimal',
+  },
+  {
+    namespace: 'a360_discounts',
+    key: 'onetime_discount_price',
+    value: '0.0',
+    type: 'number_decimal',
+  },
+  {
+    namespace: 'a360_discounts',
+    key: 'subscription_discount_percentage',
+    value: '0.0',
+    type: 'number_decimal',
+  },
+  {
+    namespace: 'a360_discounts',
+    key: 'subscription_discount_price',
+    value: '0.0',
+    type: 'number_decimal',
+  },
+];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-   const fileUrl =
-      'https://storage.googleapis.com/shopify-tiers-assets-prod-us-east1/bulk-operation-outputs/s6rrnbu4koat29k3xeqglfinszor-final?GoogleAccessId=assets-us-prod%40shopify-tiers.iam.gserviceaccount.com&Expires=1718020577&Signature=Wj0y%2BhhPSlz5uPLUGxVw4If0ZQqOPYd0AzLw9nFRtxb5l1OfD%2BU0cr9AF2FCYuRJgVo1bmW8HN4pb%2B%2F1i1aX9VAm5VKHqmFdao%2FIIJchJ17AdwneBTMyZmPEIKnhSB3xKC4kfeCnifvEju%2FKpNQCg42FpCDwQQtcdIBC9u7eobFZlFF%2BK4K1fwApBzgwiw4qkR4VmMIdks2LKyQC%2BPrMkjAKRaRDALRqGjz%2FpvpDDAkqRJ46S6vLCN%2FyaU%2F9RbTGPp16fQ7WXOPwfTzHxtexOIa1MvBbNzphR3JKeFFwLzBgQaDiMHfx35Em0c1%2FyXqyj2NBIUQcZRJZkkKr3eKg7g%3D%3D&response-content-disposition=attachment%3B+filename%3D%22bulk-4277455028528.jsonl%22%3B+filename%2A%3DUTF-8%27%27bulk-4277455028528.jsonl&response-content-type=application%2Fjsonl';
-   const outputPath = 'path-to-local-file.jsonl';
+  const filePath = 'aromacrtest.myshopify.com_1718102900728_product_export.jsonl';
+  const fileStream = fs.createReadStream(filePath);
+  const rl = readline.createInterface({
+    input: fileStream,
+    crlfDelay: Infinity,
+  });
 
+  const products: Record<
+    string,
+    { productId: string; variants: Array<{ id: string; metafields: typeof mutationArr }> }
+  > = {};
+
+  for await (const line of rl) {
+    const json = JSON.parse(line);
+
+    if (!json.__parentId) {
+      const productId = json.product.id;
+      const variantId = json.id;
+
+      if (!products[productId]) {
+        products[productId] = {
+          productId: productId,
+          variants: [],
+        };
+      }
+
+      products[productId].variants.push({
+        id: variantId,
+        metafields: mutationArr,
+      });
+    }
+  }
+
+  const bulkMutation = Object.values(products);
+  const bulkQueryPromises = bulkMutation.map(async (product) => {
+    try {
+      const response = await fetch(
+        `https://aromacrtest.myshopify.com/admin/api/2024-01/graphql.json`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Shopify-Access-Token': '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',
+          },
+          body: JSON.stringify({
+            query: `
+            mutation productVariantsBulkUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+              productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+                product {
+                  id
+                }
+                productVariants {
+                  id
+                  metafields(first: 10) {
+                    edges {
+                      node {
+                        namespace
+                        key
+                        value
+                      }
+                    }
+                  }
+                }
+                userErrors {
+                  field
+                  message
+                }
+              }
+            }
+          `,
+            variables: {
+              productId: product.productId,
+              variants: product.variants,
+            },
+          }),
+        }
+      );
+      return await response.json();
+    } catch (error) {
+      return { error };
+    }
+  });
+
+  const mutationResults = await Promise.allSettled(bulkQueryPromises);
+
+  // Return the mutation results
+  return json(mutationResults);
 };
-
-
