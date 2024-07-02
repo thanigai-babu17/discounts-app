@@ -18,17 +18,22 @@ import { useEffect } from 'react';
 type ComponentProps = {
   products: Product[] | undefined | null;
   loading: boolean;
+  selectedIds?: string[];
   onSelectionChange: (selectedIds: string[]) => void;
 };
 
 export default function ProductIndexTable({
   products,
   loading,
+  selectedIds = [],
   onSelectionChange,
 }: ComponentProps) {
-  console.log(products?.length, products, 'products length');
+  //console.log(products?.length, products, 'products length');
   const { selectedResources, allResourcesSelected, handleSelectionChange } = useIndexResourceState(
-    products as Product[]
+    products as Product[],
+    {
+      selectedResources: selectedIds,
+    }
   );
 
   useEffect(() => {

@@ -19,10 +19,16 @@ import { authenticate } from '~/shopify.server';
 import * as yup from 'yup';
 import FilterCriteriaForm from '~/components/FilterCriteriaForm';
 import { ConditionRow, FilterQueryResponse } from '~/common/types';
-import { ActionFunctionArgs, redirect } from '@remix-run/node';
-import { useFetcher, useNavigate } from '@remix-run/react';
-import { createDiscountGroup, filterProducts } from '~/services/discountgroups.service';
+import { ActionFunctionArgs, LoaderFunctionArgs, redirect } from '@remix-run/node';
+import { useFetcher, useLoaderData, useNavigate } from '@remix-run/react';
+import {
+  createDiscountGroup,
+  filterProducts,
+  filterProductsForDiscountGrp,
+} from '~/services/discountgroups.service';
 import ProductIndexTable from '~/components/ProductIndexTable';
+import db from '~/db/db.server';
+import { tableNamePrefix } from '~/common/utils';
 
 const discountTypeOptions = [
   {
@@ -40,12 +46,42 @@ const options = [
   { label: 'Draft', value: 'DRAFT' },
 ];
 
-export const action = async ({ request }: ActionFunctionArgs) => {
+export async function loader({ params, request }: LoaderFunctionArgs) {
+  const { session } = await authenticate.admin(request);
+  const discountGroup = await db(tableNamePrefix(`${session.shop}_discountgroups`))
+    .select(
+      'id',
+      'status',
+      'handle',
+      'sub_discount_type',
+      'sub_discount_value',
+      'onetime_discount_type',
+      'onetime_discount_value',
+      'criterias'
+    )
+    .where('id', params.id);
+  const filteredProducts = await filterProductsForDiscountGrp(
+    discountGroup[0].criterias,
+    session.shop,
+    params.id as string
+  );
+  const selectedProductIds = filteredProducts
+    .filter((p) => p.discount_group == params.id)
+    .map((p) => p.id);
+  return { discountGroup: discountGroup[0], products: filteredProducts, selectedProductIds };
+}
+
+export const action = async ({ request, params }: ActionFunctionArgs) => {
   try {
     const { session } = await authenticate.admin(request);
+
     const formData = await request.json();
     if (formData.formType === 'PRODUCT_FETCH') {
-      const filteredProducts = await filterProducts(formData.payload, session.shop);
+      const filteredProducts = await filterProductsForDiscountGrp(
+        formData.payload,
+        session.shop,
+        params.id as string
+      );
       return { data: filteredProducts };
     }
 
@@ -56,22 +92,23 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         session.accessToken
       );
       // console.log(updatedProducts, 'updated products');
-      return redirect(`/app/discount-groups/${updatedProducts.discountGroup[0].id}`);
+      return { data: updatedProducts };
     }
   } catch (error) {
     console.error(error);
-    return { data: [] };
+    return { data: null };
   }
 };
 
-export default function DiscountgroupsPageCreate() {
+export default function DiscountgroupsPageTemplate() {
   const productFetcher = useFetcher<FilterQueryResponse>();
   const discountGroupCreate = useFetcher<typeof action>();
+  const loaderData = useLoaderData<typeof loader>();
   const [selected, setSelected] = useState('today');
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [discountCriteria, setDiscountCriterias] = useState<ConditionRow[]>([]);
   const navigation = useNavigate();
-
+  console.log(loaderData, 'loader data');
   const discountGroupForm = useFormik({
     initialValues: {
       handle: '',
@@ -106,16 +143,22 @@ export default function DiscountgroupsPageCreate() {
   });
 
   useEffect(() => {
-    // console.log(discountGroupForm.isValid, 'form validity');
-  }, [discountGroupForm.isValid]);
+    discountGroupForm.setValues({
+      handle: loaderData.discountGroup.handle,
+      subDiscountType: loaderData.discountGroup.sub_discount_type,
+      subDiscountVal: loaderData.discountGroup.sub_discount_value,
+      oneTimeDiscountType: loaderData.discountGroup.onetime_discount_type,
+      oneTimeDiscountVal: loaderData.discountGroup.onetime_discount_value,
+    });
+    productFetcher.data = { data: loaderData.products };
+  }, []);
 
-  // useEffect(() => {
-  //   console.log(discountGroupCreate.data, 'discount created!!!!');
-  //   if (discountGroupCreate.data?.status) {
-  //     //@ts-ignore
-  //     navigation(`/app/discount-groups/${discountGroupCreate.data.data.discountGroup[0].id}`);
-  //   }
-  // }, [discountGroupCreate.data]);
+  useEffect(() => {
+    console.log(discountGroupCreate.data, 'discount created!!!!');
+    if (discountGroupCreate.data?.data) {
+      //navigation('/app/discount-groups');
+    }
+  }, [discountGroupCreate.data]);
 
   const handleSelectChange = useCallback((value: string) => setSelected(value), []);
 
@@ -137,7 +180,7 @@ export default function DiscountgroupsPageCreate() {
   return (
     <Page
       backAction={{ url: '/app/discount-groups/' }}
-      title="New Discount Group"
+      title="Discount Group"
       compactTitle
       primaryAction={{
         content: 'Save',
@@ -225,12 +268,14 @@ export default function DiscountgroupsPageCreate() {
                 <FilterCriteriaForm
                   filterOnSubmit={handleFilterOnSubmit}
                   loading={productFetcher.state != 'idle'}
+                  conditions={loaderData.discountGroup.criterias}
                 />
               </BlockStack>
             </Card>
             <ProductIndexTable
               products={productFetcher.data?.data}
               loading={productFetcher.state != 'idle'}
+              selectedIds={loaderData.selectedProductIds}
               onSelectionChange={handleProductSelect}
             />
           </BlockStack>
@@ -249,46 +294,3 @@ export default function DiscountgroupsPageCreate() {
     </Page>
   );
 }
-
-// function ProductIndexTable({ products }) {
-//   const resourceName = {
-//     singular: 'product',
-//     plural: 'products',
-//   };
-
-//   const rowMarkup = products.map((product, index) => (
-//     <IndexTable.Row id={product.id} key={product.id}>
-//       <IndexTable.Cell>
-//         <Text variant="bodyMd" fontWeight="bold" as="span">
-//           {product.title}
-//         </Text>
-//       </IndexTable.Cell>
-//       <IndexTable.Cell>
-//         {product.featuredImage ? (
-//           <img
-//             src={product.featuredImage.url}
-//             alt={product.title}
-//             style={{
-//               maxWidth: '40px',
-//               borderRadius: '4px',
-//               aspectRatio: '1/1',
-//               objectFit: 'cover',
-//             }}
-//           />
-//         ) : (
-//           'No Image'
-//         )}
-//       </IndexTable.Cell>
-//     </IndexTable.Row>
-//   ));
-
-//   return (
-//     <IndexTable
-//       resourceName={resourceName}
-//       itemCount={products.length}
-//       headings={[{ title: 'Title' }, { title: 'Featured Image' }]}
-//     >
-//       {rowMarkup}
-//     </IndexTable>
-//   );
-// }

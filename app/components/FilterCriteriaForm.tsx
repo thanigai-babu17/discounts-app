@@ -13,6 +13,7 @@ import { FormikErrors, FormikTouched, useFormik } from 'formik';
 import { XCircleIcon } from '@shopify/polaris-icons';
 import * as yup from 'yup';
 import { ConditionRow, FormValues } from '~/common/types';
+import { useEffect } from 'react';
 
 const propertyNameOptions = [
   { label: 'Collection', value: 'collections' },
@@ -28,6 +29,8 @@ const propertyOperatorsMap = {
     { label: 'contains', value: 'like' },
     { label: 'starts with', value: 'starts-with' },
     { label: 'ends with', value: 'ends-with' },
+    // { label: 'has', value: 'in' },
+    // { label: 'has not', value: 'not-in' },
   ],
   product_type: [
     { label: 'is equal to', value: '=' },
@@ -66,10 +69,15 @@ const propertyOperatorsMap = {
 
 type ComponentProps = {
   filterOnSubmit: (formData: ConditionRow[]) => void;
+  conditions?: ConditionRow[];
   loading: boolean;
 };
 
-export default function FilterCriteriaForm({ filterOnSubmit, loading }: ComponentProps) {
+export default function FilterCriteriaForm({
+  filterOnSubmit,
+  loading,
+  conditions,
+}: ComponentProps) {
   const filterCriteriaForm = useFormik({
     initialValues: {
       conditionSet: [
@@ -96,6 +104,14 @@ export default function FilterCriteriaForm({ filterOnSubmit, loading }: Componen
       filterOnSubmit(values.conditionSet);
     },
   });
+
+  useEffect(() => {
+    if (conditions) {
+      filterCriteriaForm.setValues({
+        conditionSet: conditions,
+      });
+    }
+  }, []);
 
   function handleFieldChange(index: number, field: keyof ConditionRow, value: string) {
     const rows = [...filterCriteriaForm.values.conditionSet];

@@ -39,8 +39,8 @@ type ResponseFetcherType = {
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
-  const [queryResp] = await db('product_sync')
-    .select('id', 'shop', 'status', 'operation_id')
+  const [queryResp] = await db('store_settings')
+    .select('id', 'shop', 'product_sync_status')
     .where('shop', session.shop)
     .limit(1);
   console.log(queryResp, 'query result');
@@ -130,12 +130,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       responseJson.data.bulkOperationRunQuery.bulkOperation &&
       !responseJson.data.bulkOperationRunQuery.userErrors.length
     ) {
-      const recRef = await db(`product_sync`)
-        .returning(['id', 'shop', 'status', 'operation_id'])
+      const recRef = await db(`store_settings`)
+        .returning(['id', 'shop', 'product_sync_status'])
         .insert({
           shop: session.shop,
-          status: responseJson.data.bulkOperationRunQuery.bulkOperation.status,
-          operation_id: responseJson.data.bulkOperationRunQuery.bulkOperation.id,
+          product_sync_status: responseJson.data.bulkOperationRunQuery.bulkOperation.status,
+          updated_at: db.fn.now(),
         });
       return {
         status: true,
@@ -164,22 +164,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   if (syncAction === 'STATUS_REFRESH') {
-    const [queryResult] = await db('product_sync')
-      .select('id', 'shop', 'status', 'operation_id')
-      .where('shop', session.shop)
-      .limit(1);
-    console.log(queryResult, 'query result');
-    if (queryResult) {
-      return {
-        status: true,
-        message: 'Bulk query request initiated successfully',
-      };
-    } else {
-      return {
-        status: false,
-        message: 'No matching record found',
-      };
-    }
+    return {
+      status: true,
+      message: 'Bulk query request initiated successfully',
+    };
   }
 };
 
@@ -187,11 +175,10 @@ export default function Index() {
   const fetcher = useFetcher<ResponseFetcherType | undefined>();
   const loaderData = useLoaderData<typeof loader>();
   const [productSyncStatus, setProductSyncStatus] = useState<string | null>(
-    loaderData.data?.status || null
+    loaderData.data?.product_sync_status || null
   );
 
   useEffect(() => {
-    
     shopify.toast.show(fetcher.data?.message as string, {
       isError: !fetcher.data?.status,
     });

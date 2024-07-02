@@ -16,11 +16,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     case 'APP_UNINSTALLED':
       if (session) {
         await db('shopify_sessions').where('shop', shop).del();
-        await db('product_sync').where('shop', shop).del();
         Promise.all([
-          db.schema.dropTableIfExists(tableNamePrefix(`${shop}_products`)),
-          db.schema.dropTableIfExists(tableNamePrefix(`${shop}_discountgroups`)),
-          db('product_sync').where('shop', shop).del(),
+          db.raw(`DROP TABLE IF EXISTS ${tableNamePrefix(`${shop}_products`)} CASCADE`),
+          db.raw(`DROP TABLE IF EXISTS ${tableNamePrefix(`${shop}_discountgroups`)} CASCADE`),
+          db.raw(`DROP TABLE IF EXISTS ${tableNamePrefix(`${shop}_discount_product_map`)} CASCADE`),
+          db('store_settings').where('shop', shop).del(),
         ])
           .then((resp: any) => {
             console.log('APP_UNINSTALLED:', resp);

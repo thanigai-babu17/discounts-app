@@ -11,8 +11,8 @@ import { tableNamePrefix } from '~/common/utils';
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
-  const [productSyncResp] = await db('product_sync')
-    .select('status')
+  const [productSyncResp] = await db('store_settings')
+    .select('id', 'shop', 'product_sync_status')
     .where('shop', session.shop)
     .limit(1);
 
@@ -31,7 +31,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   return {
     data: {
-      sync_status: productSyncResp ? productSyncResp?.status : null,
+      sync_status: productSyncResp ? productSyncResp?.product_sync_status : null,
       discount_groups: discountGroup || null,
     },
   };

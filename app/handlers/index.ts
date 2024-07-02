@@ -75,7 +75,6 @@ async function processFile(filePath: string, shopName: string): Promise<void> {
         collections_arr: [],
         collections_str: '',
         sku: json.sku,
-        discount_group: null,
         onetime_discount_percentage: null,
         onetime_discount_price: null,
         subscription_discount_percentage: null,
@@ -155,7 +154,9 @@ async function processFile(filePath: string, shopName: string): Promise<void> {
       console.log('Temporary file deleted successfully');
     }
   });
-  await db('product_sync').where('shop', shopName).update({
-    status: 'COMPLETE',
+
+  await db('store_settings').where('shop', shopName).update({
+    product_sync_status: 'COMPLETE',
+    updated_at: db.fn.now(),
   });
 }

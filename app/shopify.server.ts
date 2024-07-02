@@ -10,7 +10,12 @@ import { restResources } from '@shopify/shopify-api/rest/admin/2024-04';
 import firestore from './db/db.server';
 import { FirestoreSessionStorage } from './firestore-sessions';
 import { PostgreSQLSessionStorage } from '@shopify/shopify-app-session-storage-postgresql';
-import { createDiscountGroupTable, createProductTable, initDBSetupOnNewInstall } from './db/db.handlers';
+import {
+  createDiscountGroupTable,
+  createProductTable,
+  createStoreSettingsTable,
+  initDBSetupOnNewInstall,
+} from './db/db.handlers';
 import { createDiscountGroup } from './services/discountgroups.service';
 
 const shopify = shopifyApp({
@@ -35,9 +40,10 @@ const shopify = shopifyApp({
   },
   hooks: {
     afterAuth: async ({ session }) => {
+      await createStoreSettingsTable();
       shopify.registerWebhooks({ session });
-      initDBSetupOnNewInstall(session.shop).then(resp=>{
-        console.log(resp,"table creation resp");
+      initDBSetupOnNewInstall(session.shop).then((resp) => {
+        console.log(resp, 'table creation resp');
       });
     },
   },

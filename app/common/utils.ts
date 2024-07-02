@@ -1,3 +1,5 @@
+import { ConditionRow, DiscountValueType, ProdsMetaIds } from './types';
+
 /**
  * Mutates and returns the image url to a specific size and resolution
  * @param url original image Url
@@ -34,7 +36,7 @@ export function extractProductId(shopifyId: string): number {
  * @param {'PERCENTAGE' | 'FIXED'} discountValueType - The type of the discount, either 'PERCENTAGE' or 'FIXED'.
  * @returns {number | null} - The discounted price, or null if the discount value is 0, undefined, or null.
  */
-export function calculateDiscount(
+export function calculateDiscountPrice(
   price: number,
   discountValue: number,
   discountValueType: 'PERCENTAGE' | 'FIXED'
@@ -82,7 +84,6 @@ export function fixedDiscountToPercentage(price: number, fixedDiscount: number):
   return discountVal.toFixed(2);
 }
 
-
 /**
  * Replaces dots with underscores in a given name.
  * @param {string} name - The name to sanitize.
@@ -90,4 +91,278 @@ export function fixedDiscountToPercentage(price: number, fixedDiscount: number):
  */
 export function tableNamePrefix(name: string): string {
   return name.replace(/\./g, '_');
+}
+
+export function getDiscountPercentage(
+  price: number,
+  discountValue: number,
+  type: DiscountValueType
+): string {
+  if (type === 'PERCENTAGE') return discountValue.toString();
+  return fixedDiscountToPercentage(price, discountValue);
+}
+
+export function groupVariantsByProdIdNoMetaIds(
+  productArr: ProdsMetaIds[],
+  discounts: {
+    oneTimeDiscountVal: string;
+    oneTimeDiscountType: DiscountValueType;
+    subDiscountType: DiscountValueType;
+    subDiscountVal: string;
+  }
+) {
+  const groupedProducts = productArr.reduce((acc: any, product) => {
+    const mutationArr = [
+      {
+        namespace: 'a360_discounts',
+        key: 'onetime_discount_percentage',
+        value: getDiscountPercentage(
+          product.price,
+          parseFloat(discounts.oneTimeDiscountVal),
+          discounts.oneTimeDiscountType
+        ),
+        type: 'number_decimal',
+      },
+      {
+        namespace: 'a360_discounts',
+        key: 'onetime_discount_price',
+        value: calculateDiscountPrice(
+          product.price,
+          parseFloat(discounts.oneTimeDiscountVal),
+          discounts.oneTimeDiscountType
+        )?.toString(),
+        type: 'number_decimal',
+      },
+      {
+        namespace: 'a360_discounts',
+        key: 'subscription_discount_percentage',
+        value: getDiscountPercentage(
+          product.price,
+          parseFloat(discounts.subDiscountVal),
+          discounts.subDiscountType
+        ),
+        type: 'number_decimal',
+      },
+      {
+        namespace: 'a360_discounts',
+        key: 'subscription_discount_price',
+        value: calculateDiscountPrice(
+          product.price,
+          parseFloat(discounts.subDiscountVal),
+          discounts.subDiscountType
+        )?.toString(),
+        type: 'number_decimal',
+      },
+    ];
+    const existingProduct: any = acc.find(
+      (p: any) => p.productId === `gid://shopify/Product/${product.main_product_id}`
+    );
+    if (existingProduct) {
+      existingProduct.variants.push({
+        id: `gid://shopify/ProductVariant/${product.id}`,
+        metafields: mutationArr,
+      });
+    } else {
+      acc.push({
+        productId: `gid://shopify/Product/${product.main_product_id}`,
+        variants: [
+          {
+            id: `gid://shopify/ProductVariant/${product.id}`,
+            metafields: mutationArr,
+          },
+        ],
+      });
+    }
+    return acc;
+  }, []);
+
+  return groupedProducts;
+}
+
+export function groupVariantsByProdIdWithMetaIds(
+  productArr: ProdsMetaIds[],
+  discounts: {
+    oneTimeDiscountVal: string;
+    oneTimeDiscountType: DiscountValueType;
+    subDiscountType: DiscountValueType;
+    subDiscountVal: string;
+  }
+) {
+  const groupedProducts = productArr.reduce((acc: any, product) => {
+    const mutationArr = [
+      {
+        id: product.onetime_discount_percentage,
+        value: getDiscountPercentage(
+          product.price,
+          parseFloat(discounts.oneTimeDiscountVal),
+          discounts.oneTimeDiscountType
+        ),
+      },
+      {
+        id: product.onetime_discount_price,
+        value: calculateDiscountPrice(
+          product.price,
+          parseFloat(discounts.oneTimeDiscountVal),
+          discounts.oneTimeDiscountType
+        )?.toString(),
+      },
+      {
+        id: product.subscription_discount_percentage,
+        value: getDiscountPercentage(
+          product.price,
+          parseFloat(discounts.subDiscountVal),
+          discounts.subDiscountType
+        ),
+      },
+      {
+        id: product.subscription_discount_price,
+        value: calculateDiscountPrice(
+          product.price,
+          parseFloat(discounts.subDiscountVal),
+          discounts.subDiscountType
+        )?.toString(),
+      },
+    ];
+    const existingProduct: any = acc.find(
+      (p: any) => p.productId === `gid://shopify/Product/${product.main_product_id}`
+    );
+    if (existingProduct) {
+      existingProduct.variants.push({
+        id: `gid://shopify/ProductVariant/${product.id}`,
+        metafields: mutationArr,
+      });
+    } else {
+      acc.push({
+        productId: `gid://shopify/Product/${product.main_product_id}`,
+        variants: [
+          {
+            id: `gid://shopify/ProductVariant/${product.id}`,
+            metafields: mutationArr,
+          },
+        ],
+      });
+    }
+    return acc;
+  }, []);
+
+  return groupedProducts;
+}
+
+export async function bulkUpdateShopifyProductVariants(
+  inputData: any[],
+  shop: string,
+  accessToken: string
+): Promise<any> {
+  return Promise.allSettled(
+    inputData.map(async (input: any) => {
+      try {
+        const response = await fetch(`https://${shop}/admin/api/2024-01/graphql.json`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Shopify-Access-Token': accessToken,
+          },
+          body: JSON.stringify({
+            query: `
+            mutation productVariantsBulkUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+                  productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+                      product {
+                          id
+                      }
+                      productVariants {
+                          id
+                          metafields(first: 10,namespace:"a360_discounts") {
+                              edges {
+                                  node {
+                                      namespace
+                                      key
+                                      id
+                                  }
+                              }
+                          }
+                      }
+                      userErrors {
+                          field
+                          message
+                      }
+                  }
+              }`,
+            variables: input,
+          }),
+        });
+        return await response.json();
+      } catch (error) {
+        return error;
+      }
+    })
+  );
+}
+
+export function buildConditionStrFields(criteria: ConditionRow): ConditionRow {
+  let pattern = '';
+  let operator = 'like';
+  if (criteria.operator === 'like') {
+    pattern = `%${criteria.property_value}%`;
+  } else if (criteria.operator === 'starts-with') {
+    pattern = `%${criteria.property_value}%`;
+  } else if (criteria.operator === 'ends-with') {
+    pattern = `%${criteria.property_value}%`;
+  } else {
+    pattern = criteria.property_value;
+    operator = criteria.operator;
+  }
+  return {
+    property_name: criteria.property_name,
+    operator: operator,
+    property_value: pattern,
+  };
+}
+
+export function buildConditionArrFields(criteria: ConditionRow): ConditionRow {
+  let propertyName = '';
+  let operator = 'like';
+  let pattern = '';
+  if (
+    criteria.operator === 'like' ||
+    criteria.operator === 'starts-with' ||
+    criteria.operator === 'ends-with'
+  ) {
+    propertyName = `${criteria.property_name}_str`;
+  }
+  if (criteria.operator === 'like') {
+    pattern = `%${criteria.property_value}%`;
+  }
+  if (criteria.operator === 'starts-with') {
+    pattern = `%${criteria.property_value}%`;
+  }
+  if (criteria.operator === 'ends-with') {
+    pattern = `%${criteria.property_value}%`;
+  }
+  return { property_name: propertyName, operator, property_value: pattern };
+}
+
+export function createMutInputProdsWMetaIds(products: ProdsMetaIds[], discountConfig: any): any[] {
+  return groupVariantsByProdIdWithMetaIds(
+    products.filter(
+      (p) =>
+        p.onetime_discount_percentage != null ||
+        p.onetime_discount_price != null ||
+        p.subscription_discount_percentage != null ||
+        p.subscription_discount_price != null
+    ),
+    discountConfig
+  );
+}
+
+export function createMutInputProdsNoMetaIds(products: ProdsMetaIds[], discountConfig: any): any[] {
+  return groupVariantsByProdIdNoMetaIds(
+    products.filter(
+      (p) =>
+        p.onetime_discount_percentage == null ||
+        p.onetime_discount_price == null ||
+        p.subscription_discount_percentage == null ||
+        p.subscription_discount_price == null
+    ),
+    discountConfig
+  );
 }

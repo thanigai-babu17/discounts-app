@@ -1,12 +1,18 @@
-import { ConditionRow, Product } from '~/common/types';
+import { ConditionRow, Product, ProdsMetaIds } from '~/common/types';
 import db from '../db/db.server';
-import { CollectionReference, DocumentData, WhereFilterOp } from 'firebase-admin/firestore';
-import { tableNamePrefix, calculateDiscount, fixedDiscountToPercentage } from '~/common/utils';
+import {
+  tableNamePrefix,
+  groupVariantsByProdIdWithMetaIds,
+  groupVariantsByProdIdNoMetaIds,
+  bulkUpdateShopifyProductVariants,
+  extractProductId,
+  buildConditionArrFields,
+  buildConditionStrFields,
+  createMutInputProdsWMetaIds,
+  createMutInputProdsNoMetaIds,
+} from '~/common/utils';
 
-export async function filterProducts(
-  criteria: ConditionRow[],
-  shop: string
-): Promise<Product[] | Error> {
+export async function filterProducts(criteria: ConditionRow[], shop: string): Promise<Product[]> {
   try {
     let queryData = db(tableNamePrefix(`${shop}_products`)).select(
       'id',
@@ -17,22 +23,58 @@ export async function filterProducts(
       'variant_img',
       'tags_arr',
       'collections_arr',
-      'price'
+      'price',
+      'discount_group'
     );
-
     criteria.forEach((c) => {
       if (c.property_name === 'collections' || c.property_name === 'tags') {
-        queryData = queryData.andWhere(c.property_name, c.operator, c.property_value);
+        const { property_name, property_value, operator } = buildConditionArrFields(c);
+        console.log(property_name, property_value, operator, 'operators');
+        queryData = queryData.andWhere(property_name, operator, property_value);
       } else {
-        queryData = queryData.andWhere(
-          c.property_name,
-          c.operator,
-          c.operator === 'like' ? `%${c.property_value}%` : c.property_value
-        );
+        const { property_name, property_value, operator } = buildConditionStrFields(c);
+        queryData = queryData.andWhere(property_name, operator, property_value);
       }
     });
-    queryData = queryData.andWhere('status', 'ACTIVE').andWhere('discount_group', null);
-    console.log(queryData.toQuery());
+    queryData = queryData.andWhere('discount_group', null);
+    return queryData;
+  } catch (error: any) {
+    throw error;
+  }
+}
+
+export async function filterProductsForDiscountGrp(
+  criteria: ConditionRow[],
+  shop: string,
+  discountGroupId: string
+): Promise<Product[]> {
+  try {
+    let queryData = db(tableNamePrefix(`${shop}_products`)).select(
+      'id',
+      'main_product_id',
+      'status',
+      'display_name',
+      'product_img',
+      'variant_img',
+      'tags_arr',
+      'collections_arr',
+      'price',
+      'discount_group'
+    );
+    criteria.forEach((c) => {
+      if (c.property_name === 'collections' || c.property_name === 'tags') {
+        const { property_name, property_value, operator } = buildConditionArrFields(c);
+        console.log(property_name, property_value, operator, 'operators');
+        queryData = queryData.andWhere(property_name, operator, property_value);
+      } else {
+        const { property_name, property_value, operator } = buildConditionStrFields(c);
+        queryData = queryData.andWhere(property_name, operator, property_value);
+      }
+    });
+    queryData = queryData.where(function () {
+      this.where('discount_group', discountGroupId).orWhere('discount_group', null);
+    });
+    console.log(queryData.toQuery(),"RAW QUERY!!");
     return queryData;
   } catch (error: any) {
     throw error;
@@ -40,162 +82,101 @@ export async function filterProducts(
 }
 
 export async function createDiscountGroup(shop: string, payload: any, accessToken: any) {
-  // try {
-  //   const docRef = db.collection(`${shop}_discountgroups`).doc();
-  //   await docRef.set({ status: 'ACTIVE', ...payload.discount_group });
-  //   const batch = db.batch();
-  //   payload.selected_products.forEach((id: any) => {
-  //     const productRef = db.collection(`${shop}_products`).doc(id);
-  //     batch.update(productRef, { discount_group: docRef.id });
-  //   });
-  //   await batch.commit();
-  //   const updatedProducts: any[] = [];
-  //   for (const productId of payload.selected_products) {
-  //     const productRef = db.collection(`${shop}_products`).doc(productId);
-  //     const productDoc = await productRef.get();
-  //     if (productDoc.exists) {
-  //       updatedProducts.push(productDoc.data());
-  //     }
-  //   }
-  //   const groupedProducts = updatedProducts.reduce((acc, product) => {
-  //     const mutationArr = [
-  //       {
-  //         namespace: 'custom',
-  //         key: 'onetime_discount_percentage',
-  //         value:
-  //           payload.discount_group.oneTimeDiscountType === 'PERCENTAGE'
-  //             ? payload.discount_group.oneTimeDiscountVal
-  //             : fixedDiscountToPercentage(
-  //                 parseFloat(product.price),
-  //                 parseFloat(payload.discount_group.oneTimeDiscountVal)
-  //               ),
-  //         type: 'number_decimal',
-  //       },
-  //       {
-  //         namespace: 'custom',
-  //         key: 'onetime_discount_price',
-  //         value: calculateDiscount(
-  //           parseFloat(product.price),
-  //           parseFloat(payload.discount_group.oneTimeDiscountVal),
-  //           payload.discount_group.oneTimeDiscountType
-  //         )?.toString(),
-  //         type: 'number_decimal',
-  //       },
-  //       {
-  //         namespace: 'custom',
-  //         key: 'subscription_discount_percentage',
-  //         value:
-  //           payload.discount_group.subDiscountType === 'PERCENTAGE'
-  //             ? payload.discount_group.subDiscountVal
-  //             : fixedDiscountToPercentage(
-  //                 parseFloat(product.price),
-  //                 parseFloat(payload.discount_group.subDiscountVal)
-  //               ),
-  //         type: 'number_decimal',
-  //       },
-  //       {
-  //         namespace: 'custom',
-  //         key: 'subscription_discount_price',
-  //         value: calculateDiscount(
-  //           parseFloat(product.price),
-  //           parseFloat(payload.discount_group.subDiscountVal),
-  //           payload.discount_group.subDiscountType
-  //         )?.toString(),
-  //         type: 'number_decimal',
-  //       },
-  //     ];
-  //     const existingProduct = acc.find(
-  //       (p: any) => p.productId === `gid://shopify/Product/${product.main_product_id}`
-  //     );
-  //     if (existingProduct) {
-  //       existingProduct.variants.push({
-  //         id: `gid://shopify/ProductVariant/${product.id}`,
-  //         metafields: mutationArr,
-  //       });
-  //     } else {
-  //       acc.push({
-  //         productId: `gid://shopify/Product/${product.main_product_id}`,
-  //         variants: [
-  //           {
-  //             id: `gid://shopify/ProductVariant/${product.id}`,
-  //             metafields: mutationArr,
-  //           },
-  //         ],
-  //       });
-  //     }
-  //     return acc;
-  //   }, []);
-  //   // console.log(groupedProducts, 'updated products');
+  try {
+    console.log(payload, 'payload');
+    const newDiscountGroup: any[] = await db(tableNamePrefix(`${shop}_discountgroups`))
+      .returning(['id'])
+      .insert({
+        handle: payload.discount_group.handle,
+        status: 'ACTIVE',
+        sub_discount_type: payload.discount_group.subDiscountType,
+        sub_discount_value: parseFloat(payload.discount_group.subDiscountVal),
+        onetime_discount_type: payload.discount_group.oneTimeDiscountType,
+        onetime_discount_value: parseFloat(payload.discount_group.oneTimeDiscountVal),
+        criterias: JSON.stringify(payload.discount_group.criterias),
+      });
 
-  //   const bulkQueryPromises = Promise.allSettled(
-  //     groupedProducts.map(async (product: any) => {
-  //       const { productId, variants } = product;
-  //       const mutationPromises = variants.map(async (variant: any) => {
-  //         const { id, metafields } = variant;
-  //         try {
-  //           const response = await fetch(`https://${shop}/admin/api/2024-01/graphql.json`, {
-  //             method: 'POST',
-  //             headers: {
-  //               'Content-Type': 'application/json',
-  //               'X-Shopify-Access-Token': accessToken,
-  //             },
-  //             body: JSON.stringify({
-  //               query: `
-  //                       mutation productVariantsBulkUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
-  //                           productVariantsBulkUpdate(productId: $productId, variants: $variants) {
-  //                               product {
-  //                                   id
-  //                               }
-  //                               productVariants {
-  //                                   id
-  //                                   metafields(first: 10) {
-  //                                       edges {
-  //                                           node {
-  //                                               namespace
-  //                                               key
-  //                                               value
-  //                                           }
-  //                                       }
-  //                                   }
-  //                               }
-  //                               userErrors {
-  //                                   field
-  //                                   message
-  //                               }
-  //                           }
-  //                       }
-  //                   `,
-  //               variables: {
-  //                 productId,
-  //                 variants: [
-  //                   {
-  //                     id,
-  //                     metafields,
-  //                   },
-  //                 ],
-  //               },
-  //             }),
-  //           });
-  //           return await response.json();
-  //         } catch (error) {
-  //           return { error };
-  //         }
-  //       });
-  //       return Promise.allSettled(mutationPromises);
-  //     })
-  //   );
+    const responseBody: any = {};
+    responseBody.discountGroup = newDiscountGroup;
+    const selectedProductRecords = await db(tableNamePrefix(`${shop}_products`))
+      .select(
+        'id',
+        'main_product_id',
+        'price',
+        'onetime_discount_percentage',
+        'onetime_discount_price',
+        'subscription_discount_percentage',
+        'subscription_discount_price'
+      )
+      .whereIn('id', payload.selected_products);
 
-  //   bulkQueryPromises
-  //     .then((resp) => {
-  //       console.info('Discounts updated to product', JSON.stringify(resp));
-  //     })
-  //     .catch((err) => {
-  //       console.error('something went wrong with discount update', err);
-  //     });
-  //   return updatedProducts;
-  // } catch (error) {
-  //   throw error;
-  // }
+    const productWithMetafieldIds = createMutInputProdsWMetaIds(
+      selectedProductRecords,
+      payload.discount_group
+    );
 
-  return [];
+    const productWithOutMetafieldIds = createMutInputProdsNoMetaIds(
+      selectedProductRecords,
+      payload.discount_group
+    );
+
+    if (productWithMetafieldIds.length) {
+      const bulkupdateResp = await bulkUpdateShopifyProductVariants(
+        productWithMetafieldIds,
+        shop,
+        accessToken
+      );
+      responseBody.productWithMetafieldIds = bulkupdateResp;
+    }
+
+    if (productWithOutMetafieldIds.length) {
+      const bulkupdateResp = await bulkUpdateShopifyProductVariants(
+        productWithOutMetafieldIds,
+        shop,
+        accessToken
+      );
+      bulkUpdateMetaFieldIds(bulkupdateResp, shop)
+        .then((resp) => {
+          console.log('completed updating metafield ids');
+        })
+        .catch((err) => {
+          console.error(err, 'error while updating metafieldIds');
+        });
+      responseBody.productWithOutMetafieldIds = bulkupdateResp;
+    }
+
+    await db(tableNamePrefix(`${shop}_products`))
+      .update({
+        discount_group: newDiscountGroup[0].id,
+      })
+      .whereIn('id', payload.selected_products);
+
+    return responseBody;
+    //   return updatedProducts;
+  } catch (error) {
+    throw error;
+  }
+}
+
+function bulkUpdateMetaFieldIds(bulkupdateResp: any[], shop: string) {
+  const updatePromises = bulkupdateResp.map(async (req) => {
+    const { product, productVariants, userErrors } = req?.value?.data?.productVariantsBulkUpdate;
+
+    const variantUpdatePromises = productVariants.map(async (variant: any) => {
+      const id = variant.id;
+      const payloadData = variant.metafields.edges.reduce((acc: any, edge: any) => {
+        const { key, id: metafieldId } = edge.node;
+        acc[`${key}`] = metafieldId;
+        return acc;
+      }, {});
+
+      return db(tableNamePrefix(`${shop}_products`))
+        .update(payloadData)
+        .where('id', extractProductId(id));
+    });
+
+    return Promise.all(variantUpdatePromises);
+  });
+
+  return Promise.all(updatePromises);
 }

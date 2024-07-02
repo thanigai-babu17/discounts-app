@@ -4,7 +4,7 @@ import db from './db.server';
 export async function createProductTable(shopName: string): Promise<any> {
   try {
     const tableName = tableNamePrefix(`${shopName}_products`);
-    const refTableName = tableNamePrefix(`${shopName}_discountgroups`);
+    const discountTableName = tableNamePrefix(`${shopName}_discountgroups`);
     const tableExists = await db.schema.hasTable(tableName);
     if (!tableExists) {
       await db.schema.createTable(tableName, (table) => {
@@ -24,16 +24,13 @@ export async function createProductTable(shopName: string): Promise<any> {
         table.text('collections_str');
         table.specificType('collections_arr', 'text[]');
         table.string('sku');
-        table.integer('discount_group').references('id').inTable(refTableName);
         table.string('onetime_discount_percentage');
         table.string('onetime_discount_price');
         table.string('subscription_discount_percentage');
         table.string('subscription_discount_price');
+        table.integer('discount_group').references('id').inTable(discountTableName);
       });
-      console.log('products table: creating new tables');
-      return { status: true };
     }
-    console.log('product table: table already exist');
     return { status: true };
   } catch (error) {
     throw error;
@@ -57,10 +54,47 @@ export async function createDiscountGroupTable(shopName: string): Promise<any> {
         table.timestamp('created_at').notNullable().defaultTo(db.fn.now());
         table.timestamp('updated_at').notNullable().defaultTo(db.fn.now());
       });
-      console.log('discounts table: creating new tables');
-      return { status: true };
     }
-    console.log('discounts table: already exist');
+    return { status: true };
+  } catch (error) {
+    throw error;
+  }
+}
+
+// export async function createDiscountProductMapTable(shopName: string): Promise<any> {
+//   try {
+//     const tableName = tableNamePrefix(`${shopName}_discount_product_map`);
+//     const productTableName = tableNamePrefix(`${shopName}_products`);
+//     const discountTableName = tableNamePrefix(`${shopName}_discountgroups`);
+//     const tableExists = await db.schema.hasTable(tableName);
+//     if (!tableExists) {
+//       await db.schema.createTable(tableName, (table) => {
+//         table.increments('id').primary();
+//         table.integer('discount_id').references('id').inTable(discountTableName);
+//         table.bigInteger('product_id').references('id').inTable(productTableName);
+//         table.timestamp('created_at').notNullable().defaultTo(db.fn.now());
+//       });
+//     }
+//     return { status: true };
+//   } catch (error) {
+//     throw error;
+//   }
+// }
+
+export async function createStoreSettingsTable(): Promise<any> {
+  try {
+    const tableName = `store_settings`;
+    const tableExists = await db.schema.hasTable(tableName);
+    if (!tableExists) {
+      await db.schema.createTable(tableName, (table) => {
+        table.increments('id').primary();
+        table.string('shop').notNullable();
+        table.string('product_sync_status').notNullable().defaultTo('YET_TO_START');
+        table.json('metafields_def');
+        table.timestamp('created_at').notNullable().defaultTo(db.fn.now());
+        table.timestamp('updated_at').notNullable().defaultTo(db.fn.now());
+      });
+    }
     return { status: true };
   } catch (error) {
     throw error;

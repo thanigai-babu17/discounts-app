@@ -1,4 +1,4 @@
-import { redirect } from '@remix-run/node';
+import { Link } from '@remix-run/react';
 import {
   Card,
   IndexTable,
@@ -6,7 +6,7 @@ import {
   Text,
   Badge,
   Bleed,
-  IndexFilters,
+  Button,
 } from '@shopify/polaris';
 import { APP_LABELS, DiscountGroup } from '~/common/types';
 
@@ -23,7 +23,7 @@ export default function DiscountGroupIndexTable({ discounts }: ComponentProps) {
     singular: 'discount group',
     plural: 'discount groups',
   };
-  console.log(discounts, 'groups');
+
   const rowMarkup = discounts.map(
     (
       {
@@ -37,16 +37,17 @@ export default function DiscountGroupIndexTable({ discounts }: ComponentProps) {
       },
       index
     ) => (
-      <IndexTable.Row
-        id={id}
-        key={id}
-        position={index}
-        selected={selectedResources.includes(id)}
-        onNavigation={() => {}}
-      >
+      <IndexTable.Row id={id} key={id} position={index} selected={selectedResources.includes(id)}>
         <IndexTable.Cell>
           <Text variant="bodyMd" as="span">
-            {handle}
+            <Link
+              className={'Polaris-Link Polaris-Link--monochrome Polaris-Link--removeUnderline'}
+              to={`/app/discount-groups/${id}`}
+              data-primary-link={true}
+              data-polaris-unstyled={true}
+            >
+              {handle}
+            </Link>
           </Text>
         </IndexTable.Cell>
         <IndexTable.Cell>

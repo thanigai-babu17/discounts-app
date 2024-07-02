@@ -26,7 +26,7 @@ export type Product = {
   discount_group: string | null;
 };
 
-export type FilterQueryResponse = { status: boolean; data?: Product[] | null; error?: Error };
+export type FilterQueryResponse = { data?: Product[] };
 
 export type DiscountGroup = {
   id: string;
@@ -43,3 +43,15 @@ export const APP_LABELS = {
   PERCENTAGE: '%',
   FIXED: '$',
 };
+
+export type ProdsMetaIds = {
+  id: number;
+  main_product_id: number;
+  onetime_discount_percentage: string | null;
+  onetime_discount_price: string | null;
+  subscription_discount_percentage: string | null;
+  subscription_discount_price: string | null;
+  price: number;
+};
+
+export type DiscountValueType = 'PERCENTAGE' | 'FIXED';
