@@ -209,25 +209,13 @@ export default function DiscountgroupsPageTemplate() {
         <Button
           variant="primary"
           tone="critical"
-          onClick={() => shopify.modal.show('delete-modal')}
+          onClick={handleDiscountDelete}
+          loading={discountGroupDelete.state != 'idle'}
         >
           Delete
         </Button>
       }
-      
     >
-      <Modal id="delete-modal">
-        <TitleBar title={`Delete ${loaderData.discountGroup.handle}`}>
-          <button variant="primary" tone={'critical'} onClick={handleDiscountDelete}>
-            Delete
-          </button>
-          <button onClick={() => shopify.modal.hide('delete-modal')}>Cancel</button>
-        </TitleBar>
-        <p style={{ padding: '10px' }}>
-          Deleting the discount group will remove the discounts from its associated product and this
-          action cannot be undone
-        </p>
-      </Modal>
       <Layout>
         <Layout.Section>
           <BlockStack gap={'400'}>

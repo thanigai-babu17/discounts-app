@@ -1,9 +1,7 @@
-import { ConditionRow, Product, ProdsMetaIds } from '~/common/types';
+import { ConditionRow, Product } from '~/common/types';
 import db from '../db/db.server';
 import {
   tableNamePrefix,
-  groupVariantsByProdIdWithMetaIds,
-  groupVariantsByProdIdNoMetaIds,
   bulkUpdateShopifyProductVariants,
   extractProductId,
   buildConditionArrFields,
@@ -12,7 +10,6 @@ import {
   createMutInputProdsNoMetaIds,
   createMutInputDiscountDelete,
 } from '~/common/utils';
-import { Session } from '@shopify/shopify-api';
 
 export async function filterProducts(criteria: ConditionRow[], shop: string): Promise<Product[]> {
   try {
