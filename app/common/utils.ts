@@ -366,3 +366,47 @@ export function createMutInputProdsNoMetaIds(products: ProdsMetaIds[], discountC
     discountConfig
   );
 }
+
+export function createMutInputDiscountDelete(products: ProdsMetaIds[]) {
+  const groupedProducts = products.reduce((acc: any, product) => {
+    const mutationArr = [
+      {
+        id: product.onetime_discount_percentage,
+        value: '0.0',
+      },
+      {
+        id: product.onetime_discount_price,
+        value: '0.0',
+      },
+      {
+        id: product.subscription_discount_percentage,
+        value: '0.0',
+      },
+      {
+        id: product.subscription_discount_price,
+        value: '0.0',
+      },
+    ];
+    const existingProduct: any = acc.find(
+      (p: any) => p.productId === `gid://shopify/Product/${product.main_product_id}`
+    );
+    if (existingProduct) {
+      existingProduct.variants.push({
+        id: `gid://shopify/ProductVariant/${product.id}`,
+        metafields: mutationArr,
+      });
+    } else {
+      acc.push({
+        productId: `gid://shopify/Product/${product.main_product_id}`,
+        variants: [
+          {
+            id: `gid://shopify/ProductVariant/${product.id}`,
+            metafields: mutationArr,
+          },
+        ],
+      });
+    }
+    return acc;
+  }, []);
+  return groupedProducts;
+}

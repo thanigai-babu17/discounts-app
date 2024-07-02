@@ -10,7 +10,7 @@ import {
   Thumbnail,
   useIndexResourceState,
 } from '@shopify/polaris';
-import { ConditionRow, Product } from '~/common/types';
+import { Product } from '~/common/types';
 import { ImageIcon } from '@shopify/polaris-icons';
 import { imgUrl } from '~/common/utils';
 import { useEffect } from 'react';

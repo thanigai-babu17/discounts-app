@@ -6,12 +6,9 @@ import {
   Form,
   FormLayout,
   TextField,
-  Button,
-  InlineStack,
   InlineGrid,
   BlockStack,
-  Text,
-  IndexTable,
+  Button,
 } from '@shopify/polaris';
 import { useCallback, useEffect, useState } from 'react';
 import { useFormik } from 'formik';
@@ -23,12 +20,13 @@ import { ActionFunctionArgs, LoaderFunctionArgs, redirect } from '@remix-run/nod
 import { useFetcher, useLoaderData, useNavigate } from '@remix-run/react';
 import {
   createDiscountGroup,
-  filterProducts,
+  deleteDiscountGroup,
   filterProductsForDiscountGrp,
 } from '~/services/discountgroups.service';
 import ProductIndexTable from '~/components/ProductIndexTable';
 import db from '~/db/db.server';
 import { tableNamePrefix } from '~/common/utils';
+import { Modal, TitleBar } from '@shopify/app-bridge-react';
 
 const discountTypeOptions = [
   {
@@ -68,6 +66,7 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
   const selectedProductIds = filteredProducts
     .filter((p) => p.discount_group == params.id)
     .map((p) => p.id);
+  console.log('loader fucntion running....');
   return { discountGroup: discountGroup[0], products: filteredProducts, selectedProductIds };
 }
 
@@ -85,14 +84,27 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       return { data: filteredProducts };
     }
 
-    if (formData.formType === 'DISCOUNT_CREATE') {
-      const updatedProducts = await createDiscountGroup(
-        session.shop,
-        formData.payload,
-        session.accessToken
-      );
+    if (formData.formType === 'DISCOUNT_UPDATE') {
+      // const updatedProducts = await createDiscountGroup(
+      //   session.shop,
+      //   formData.payload,
+      //   session.accessToken
+      // );
       // console.log(updatedProducts, 'updated products');
-      return { data: updatedProducts };
+      return { data: [] };
+    }
+
+    if (formData.formType === 'DISCOUNT_DELETE') {
+      if (session.accessToken) {
+        const deleteResp = await deleteDiscountGroup(
+          formData.payload,
+          session.accessToken,
+          session.shop
+        );
+        if (deleteResp.status) {
+          return redirect(`/app/discount-groups/`);
+        }
+      }
     }
   } catch (error) {
     console.error(error);
@@ -102,13 +114,14 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 
 export default function DiscountgroupsPageTemplate() {
   const productFetcher = useFetcher<FilterQueryResponse>();
-  const discountGroupCreate = useFetcher<typeof action>();
+  const discountGroupUpdate = useFetcher<typeof action>();
+  const discountGroupDelete = useFetcher<typeof action>();
   const loaderData = useLoaderData<typeof loader>();
   const [selected, setSelected] = useState('today');
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [discountCriteria, setDiscountCriterias] = useState<ConditionRow[]>([]);
   const navigation = useNavigate();
-  console.log(loaderData, 'loader data');
+  // console.log(loaderData, 'loader data');
   const discountGroupForm = useFormik({
     initialValues: {
       handle: '',
@@ -126,9 +139,9 @@ export default function DiscountgroupsPageTemplate() {
     }),
     onSubmit: async (values) => {
       // console.log(discountCriteria, selectedProducts,'diuscount criterias');
-      discountGroupCreate.submit(
+      discountGroupUpdate.submit(
         {
-          formType: 'DISCOUNT_CREATE',
+          formType: 'DISCOUNT_UPDATE',
           payload: {
             discount_group: { ...values, criterias: discountCriteria },
             selected_products: selectedProducts,
@@ -153,13 +166,6 @@ export default function DiscountgroupsPageTemplate() {
     productFetcher.data = { data: loaderData.products };
   }, []);
 
-  useEffect(() => {
-    console.log(discountGroupCreate.data, 'discount created!!!!');
-    if (discountGroupCreate.data?.data) {
-      //navigation('/app/discount-groups');
-    }
-  }, [discountGroupCreate.data]);
-
   const handleSelectChange = useCallback((value: string) => setSelected(value), []);
 
   async function handleFilterOnSubmit(e: ConditionRow[]) {
@@ -177,6 +183,17 @@ export default function DiscountgroupsPageTemplate() {
     setSelectedProducts(selectedRecords);
   }
 
+  function handleDiscountDelete() {
+    discountGroupDelete.submit(
+      { formType: 'DISCOUNT_DELETE', payload: [loaderData.discountGroup.id] },
+      {
+        method: 'POST',
+        encType: 'application/json',
+      }
+    );
+    console.log('handle discount delete');
+  }
+
   return (
     <Page
       backAction={{ url: '/app/discount-groups/' }}
@@ -186,9 +203,31 @@ export default function DiscountgroupsPageTemplate() {
         content: 'Save',
         disabled: !selectedProducts.length || !discountCriteria.length,
         onAction: () => discountGroupForm.submitForm(),
-        loading: discountGroupCreate.state != 'idle',
+        loading: discountGroupUpdate.state != 'idle',
       }}
+      secondaryActions={
+        <Button
+          variant="primary"
+          tone="critical"
+          onClick={() => shopify.modal.show('delete-modal')}
+        >
+          Delete
+        </Button>
+      }
+      
     >
+      <Modal id="delete-modal">
+        <TitleBar title={`Delete ${loaderData.discountGroup.handle}`}>
+          <button variant="primary" tone={'critical'} onClick={handleDiscountDelete}>
+            Delete
+          </button>
+          <button onClick={() => shopify.modal.hide('delete-modal')}>Cancel</button>
+        </TitleBar>
+        <p style={{ padding: '10px' }}>
+          Deleting the discount group will remove the discounts from its associated product and this
+          action cannot be undone
+        </p>
+      </Modal>
       <Layout>
         <Layout.Section>
           <BlockStack gap={'400'}>

@@ -10,7 +10,9 @@ import {
   buildConditionStrFields,
   createMutInputProdsWMetaIds,
   createMutInputProdsNoMetaIds,
+  createMutInputDiscountDelete,
 } from '~/common/utils';
+import { Session } from '@shopify/shopify-api';
 
 export async function filterProducts(criteria: ConditionRow[], shop: string): Promise<Product[]> {
   try {
@@ -74,7 +76,7 @@ export async function filterProductsForDiscountGrp(
     queryData = queryData.where(function () {
       this.where('discount_group', discountGroupId).orWhere('discount_group', null);
     });
-    console.log(queryData.toQuery(),"RAW QUERY!!");
+    console.log(queryData.toQuery(), 'RAW QUERY!!');
     return queryData;
   } catch (error: any) {
     throw error;
@@ -153,6 +155,35 @@ export async function createDiscountGroup(shop: string, payload: any, accessToke
 
     return responseBody;
     //   return updatedProducts;
+  } catch (error) {
+    throw error;
+  }
+}
+
+export async function deleteDiscountGroup(ids: string[], accessToken: string, shop: string) {
+  try {
+    const productsUnderDiscountGrp = await db(tableNamePrefix(`${shop}_products`))
+      .select(
+        'id',
+        'main_product_id',
+        'price',
+        'onetime_discount_percentage',
+        'onetime_discount_price',
+        'subscription_discount_percentage',
+        'subscription_discount_price'
+      )
+      .whereIn('discount_group', ids);
+    const productMutInput = createMutInputDiscountDelete(productsUnderDiscountGrp);
+    if (productMutInput && productMutInput.length) {
+      await bulkUpdateShopifyProductVariants(productMutInput, shop, accessToken);
+    }
+    await db(tableNamePrefix(`${shop}_products`))
+      .whereIn('discount_group', ids)
+      .del();
+    await db(tableNamePrefix(`${shop}_discountgroups`))
+      .whereIn('id', ids)
+      .del();
+    return { status: true, deletedId: ids };
   } catch (error) {
     throw error;
   }
